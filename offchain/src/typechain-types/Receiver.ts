@@ -63,18 +63,24 @@ export interface ReceiverInterface extends Interface {
       | "acceptOwnership"
       | "allowlistSender"
       | "allowlistSourceChain"
+      | "ccipReceive"
+      | "processMessage"
+      | "retryFailedMessage"
+      | "setSimRevert"
+      | "transferOwnership"
       | "allowlistedSenders"
       | "allowlistedSourceChains"
-      | "ccipReceive"
+      | "getFailedMessagesIds"
       | "getRouter"
       | "owner"
+      | "s_messageContents"
       | "supportsInterface"
-      | "transferOwnership"
   ): FunctionFragment;
 
   getEvent(
     nameOrSignatureOrTopic:
-      | "MessageReceived"
+      | "MessageFailed"
+      | "MessageRecovered"
       | "OwnershipTransferRequested"
       | "OwnershipTransferred"
   ): EventFragment;
@@ -92,6 +98,26 @@ export interface ReceiverInterface extends Interface {
     values: [BigNumberish, boolean]
   ): string;
   encodeFunctionData(
+    functionFragment: "ccipReceive",
+    values: [Client.Any2EVMMessageStruct]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "processMessage",
+    values: [Client.Any2EVMMessageStruct]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "retryFailedMessage",
+    values: [BytesLike, AddressLike]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "setSimRevert",
+    values: [boolean]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "transferOwnership",
+    values: [AddressLike]
+  ): string;
+  encodeFunctionData(
     functionFragment: "allowlistedSenders",
     values: [AddressLike]
   ): string;
@@ -100,18 +126,18 @@ export interface ReceiverInterface extends Interface {
     values: [BigNumberish]
   ): string;
   encodeFunctionData(
-    functionFragment: "ccipReceive",
-    values: [Client.Any2EVMMessageStruct]
+    functionFragment: "getFailedMessagesIds",
+    values?: undefined
   ): string;
   encodeFunctionData(functionFragment: "getRouter", values?: undefined): string;
   encodeFunctionData(functionFragment: "owner", values?: undefined): string;
   encodeFunctionData(
-    functionFragment: "supportsInterface",
+    functionFragment: "s_messageContents",
     values: [BytesLike]
   ): string;
   encodeFunctionData(
-    functionFragment: "transferOwnership",
-    values: [AddressLike]
+    functionFragment: "supportsInterface",
+    values: [BytesLike]
   ): string;
 
   decodeFunctionResult(
@@ -127,6 +153,26 @@ export interface ReceiverInterface extends Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
+    functionFragment: "ccipReceive",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "processMessage",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "retryFailedMessage",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "setSimRevert",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "transferOwnership",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
     functionFragment: "allowlistedSenders",
     data: BytesLike
   ): Result;
@@ -135,45 +181,39 @@ export interface ReceiverInterface extends Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "ccipReceive",
+    functionFragment: "getFailedMessagesIds",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "getRouter", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
   decodeFunctionResult(
-    functionFragment: "supportsInterface",
+    functionFragment: "s_messageContents",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "transferOwnership",
+    functionFragment: "supportsInterface",
     data: BytesLike
   ): Result;
 }
 
-export namespace MessageReceivedEvent {
-  export type InputTuple = [
-    messageId: BytesLike,
-    sourceChainSelector: BigNumberish,
-    sender: AddressLike,
-    iterationsInput: BigNumberish,
-    iterationsDone: BigNumberish,
-    result: BigNumberish
-  ];
-  export type OutputTuple = [
-    messageId: string,
-    sourceChainSelector: bigint,
-    sender: string,
-    iterationsInput: bigint,
-    iterationsDone: bigint,
-    result: bigint
-  ];
+export namespace MessageFailedEvent {
+  export type InputTuple = [messageId: BytesLike, reason: BytesLike];
+  export type OutputTuple = [messageId: string, reason: string];
   export interface OutputObject {
     messageId: string;
-    sourceChainSelector: bigint;
-    sender: string;
-    iterationsInput: bigint;
-    iterationsDone: bigint;
-    result: bigint;
+    reason: string;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
+}
+
+export namespace MessageRecoveredEvent {
+  export type InputTuple = [messageId: BytesLike];
+  export type OutputTuple = [messageId: string];
+  export interface OutputObject {
+    messageId: string;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -253,49 +293,78 @@ export interface Receiver extends BaseContract {
   acceptOwnership: TypedContractMethod<[], [void], "nonpayable">;
 
   allowlistSender: TypedContractMethod<
-    [_sender: AddressLike, allowed: boolean],
+    [_sender: AddressLike, _allowed: boolean],
     [void],
     "nonpayable"
   >;
 
   allowlistSourceChain: TypedContractMethod<
-    [_sourceChainSelector: BigNumberish, allowed: boolean],
+    [_sourceChainSelector: BigNumberish, _allowed: boolean],
     [void],
     "nonpayable"
-  >;
-
-  allowlistedSenders: TypedContractMethod<
-    [arg0: AddressLike],
-    [boolean],
-    "view"
-  >;
-
-  allowlistedSourceChains: TypedContractMethod<
-    [arg0: BigNumberish],
-    [boolean],
-    "view"
   >;
 
   ccipReceive: TypedContractMethod<
-    [message: Client.Any2EVMMessageStruct],
+    [any2EvmMessage: Client.Any2EVMMessageStruct],
     [void],
     "nonpayable"
   >;
 
-  getRouter: TypedContractMethod<[], [string], "view">;
-
-  owner: TypedContractMethod<[], [string], "view">;
-
-  supportsInterface: TypedContractMethod<
-    [interfaceId: BytesLike],
-    [boolean],
-    "view"
+  processMessage: TypedContractMethod<
+    [any2EvmMessage: Client.Any2EVMMessageStruct],
+    [void],
+    "nonpayable"
   >;
+
+  retryFailedMessage: TypedContractMethod<
+    [messageId: BytesLike, tokenReceiver: AddressLike],
+    [void],
+    "nonpayable"
+  >;
+
+  setSimRevert: TypedContractMethod<[simRevert: boolean], [void], "nonpayable">;
 
   transferOwnership: TypedContractMethod<
     [to: AddressLike],
     [void],
     "nonpayable"
+  >;
+
+  allowlistedSenders: TypedContractMethod<
+    [sender: AddressLike],
+    [boolean],
+    "view"
+  >;
+
+  allowlistedSourceChains: TypedContractMethod<
+    [chainSelecotor: BigNumberish],
+    [boolean],
+    "view"
+  >;
+
+  getFailedMessagesIds: TypedContractMethod<[], [string[]], "view">;
+
+  getRouter: TypedContractMethod<[], [string], "view">;
+
+  owner: TypedContractMethod<[], [string], "view">;
+
+  s_messageContents: TypedContractMethod<
+    [messageId: BytesLike],
+    [
+      [string, bigint, string, string] & {
+        messageId: string;
+        sourceChainSelector: bigint;
+        sender: string;
+        data: string;
+      }
+    ],
+    "view"
+  >;
+
+  supportsInterface: TypedContractMethod<
+    [interfaceId: BytesLike],
+    [boolean],
+    "view"
   >;
 
   getFunction<T extends ContractMethod = ContractMethod>(
@@ -308,30 +377,53 @@ export interface Receiver extends BaseContract {
   getFunction(
     nameOrSignature: "allowlistSender"
   ): TypedContractMethod<
-    [_sender: AddressLike, allowed: boolean],
+    [_sender: AddressLike, _allowed: boolean],
     [void],
     "nonpayable"
   >;
   getFunction(
     nameOrSignature: "allowlistSourceChain"
   ): TypedContractMethod<
-    [_sourceChainSelector: BigNumberish, allowed: boolean],
+    [_sourceChainSelector: BigNumberish, _allowed: boolean],
     [void],
     "nonpayable"
   >;
-  getFunction(
-    nameOrSignature: "allowlistedSenders"
-  ): TypedContractMethod<[arg0: AddressLike], [boolean], "view">;
-  getFunction(
-    nameOrSignature: "allowlistedSourceChains"
-  ): TypedContractMethod<[arg0: BigNumberish], [boolean], "view">;
   getFunction(
     nameOrSignature: "ccipReceive"
   ): TypedContractMethod<
-    [message: Client.Any2EVMMessageStruct],
+    [any2EvmMessage: Client.Any2EVMMessageStruct],
     [void],
     "nonpayable"
   >;
+  getFunction(
+    nameOrSignature: "processMessage"
+  ): TypedContractMethod<
+    [any2EvmMessage: Client.Any2EVMMessageStruct],
+    [void],
+    "nonpayable"
+  >;
+  getFunction(
+    nameOrSignature: "retryFailedMessage"
+  ): TypedContractMethod<
+    [messageId: BytesLike, tokenReceiver: AddressLike],
+    [void],
+    "nonpayable"
+  >;
+  getFunction(
+    nameOrSignature: "setSimRevert"
+  ): TypedContractMethod<[simRevert: boolean], [void], "nonpayable">;
+  getFunction(
+    nameOrSignature: "transferOwnership"
+  ): TypedContractMethod<[to: AddressLike], [void], "nonpayable">;
+  getFunction(
+    nameOrSignature: "allowlistedSenders"
+  ): TypedContractMethod<[sender: AddressLike], [boolean], "view">;
+  getFunction(
+    nameOrSignature: "allowlistedSourceChains"
+  ): TypedContractMethod<[chainSelecotor: BigNumberish], [boolean], "view">;
+  getFunction(
+    nameOrSignature: "getFailedMessagesIds"
+  ): TypedContractMethod<[], [string[]], "view">;
   getFunction(
     nameOrSignature: "getRouter"
   ): TypedContractMethod<[], [string], "view">;
@@ -339,18 +431,36 @@ export interface Receiver extends BaseContract {
     nameOrSignature: "owner"
   ): TypedContractMethod<[], [string], "view">;
   getFunction(
+    nameOrSignature: "s_messageContents"
+  ): TypedContractMethod<
+    [messageId: BytesLike],
+    [
+      [string, bigint, string, string] & {
+        messageId: string;
+        sourceChainSelector: bigint;
+        sender: string;
+        data: string;
+      }
+    ],
+    "view"
+  >;
+  getFunction(
     nameOrSignature: "supportsInterface"
   ): TypedContractMethod<[interfaceId: BytesLike], [boolean], "view">;
-  getFunction(
-    nameOrSignature: "transferOwnership"
-  ): TypedContractMethod<[to: AddressLike], [void], "nonpayable">;
 
   getEvent(
-    key: "MessageReceived"
+    key: "MessageFailed"
   ): TypedContractEvent<
-    MessageReceivedEvent.InputTuple,
-    MessageReceivedEvent.OutputTuple,
-    MessageReceivedEvent.OutputObject
+    MessageFailedEvent.InputTuple,
+    MessageFailedEvent.OutputTuple,
+    MessageFailedEvent.OutputObject
+  >;
+  getEvent(
+    key: "MessageRecovered"
+  ): TypedContractEvent<
+    MessageRecoveredEvent.InputTuple,
+    MessageRecoveredEvent.OutputTuple,
+    MessageRecoveredEvent.OutputObject
   >;
   getEvent(
     key: "OwnershipTransferRequested"
@@ -368,15 +478,26 @@ export interface Receiver extends BaseContract {
   >;
 
   filters: {
-    "MessageReceived(bytes32,uint64,address,uint256,uint256,uint256)": TypedContractEvent<
-      MessageReceivedEvent.InputTuple,
-      MessageReceivedEvent.OutputTuple,
-      MessageReceivedEvent.OutputObject
+    "MessageFailed(bytes32,bytes)": TypedContractEvent<
+      MessageFailedEvent.InputTuple,
+      MessageFailedEvent.OutputTuple,
+      MessageFailedEvent.OutputObject
     >;
-    MessageReceived: TypedContractEvent<
-      MessageReceivedEvent.InputTuple,
-      MessageReceivedEvent.OutputTuple,
-      MessageReceivedEvent.OutputObject
+    MessageFailed: TypedContractEvent<
+      MessageFailedEvent.InputTuple,
+      MessageFailedEvent.OutputTuple,
+      MessageFailedEvent.OutputObject
+    >;
+
+    "MessageRecovered(bytes32)": TypedContractEvent<
+      MessageRecoveredEvent.InputTuple,
+      MessageRecoveredEvent.OutputTuple,
+      MessageRecoveredEvent.OutputObject
+    >;
+    MessageRecovered: TypedContractEvent<
+      MessageRecoveredEvent.InputTuple,
+      MessageRecoveredEvent.OutputTuple,
+      MessageRecoveredEvent.OutputObject
     >;
 
     "OwnershipTransferRequested(address,address)": TypedContractEvent<

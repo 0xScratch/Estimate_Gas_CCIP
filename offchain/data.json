@@ -1,0 +1,8 @@
+{
+  "ethereumSepolia": {
+    "crossChainReceiver": "0x1cb657B51d95B9136b82a3E60B030B712295E590"
+  },
+  "avalancheFuji": {
+    "transferUSDC": "0xF8e0eB2e188C8210f740fAE836e0EFc0bA9962Cf"
+  }
+}
